@@ -1,0 +1,15 @@
+<resources>
+    <string name="app_name">8Browser</string>
+    <string name="search_or_enter_url">Поиск или ввод URL</string>
+    <string name="tab_new">Новая вкладка</string>
+    <string name="tab_incognito">Инкогнито</string>
+    <string name="downloads">Загрузки</string>
+    <string name="history">История</string>
+    <string name="bookmarks">Закладки</string>
+    <string name="settings">Настройки</string>
+    <string name="clear_history">Очистить историю</string>
+    <string name="clear_cache">Очистить кэш</string>
+    <string name="cache_mode">Режим кэширования</string>
+    <string name="android_version_info">Android 4.1+ Jelly Bean Edition</string>
+</resources>
+

@@ -1,0 +1,7 @@
+{
+  "name": "8Browser",
+  "description": "Удобный веб-браузер с системным WebView, дизайном системных элементов Android 4.1 Holo Dark, режимом инкогнито, менеджером загрузок, историей и поддержкой кэша.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
+
