@@ -77,6 +77,7 @@ fun HoloActionBar(
     onToggleBookmark: () -> Unit,
     onOpenTabs: () -> Unit,
     onOpenOverflowMenu: () -> Unit,
+    overflowMenu: @Composable () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     var urlInput by remember(tab.url) { mutableStateOf(tab.url) }
@@ -246,16 +247,19 @@ fun HoloActionBar(
             }
 
             // Overflow Menu (classic 3 vertical squares)
-            IconButton(
-                onClick = onOpenOverflowMenu,
-                modifier = Modifier.size(36.dp)
-            ) {
-                Icon(
-                    imageVector = Icons.Default.MoreVert,
-                    contentDescription = "Меню",
-                    tint = HoloTextPrimary,
-                    modifier = Modifier.size(22.dp)
-                )
+            Box {
+                IconButton(
+                    onClick = onOpenOverflowMenu,
+                    modifier = Modifier.size(36.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.MoreVert,
+                        contentDescription = "Меню",
+                        tint = HoloTextPrimary,
+                        modifier = Modifier.size(22.dp)
+                    )
+                }
+                overflowMenu()
             }
         }
 

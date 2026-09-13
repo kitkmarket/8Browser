@@ -10,6 +10,6 @@
     <string name="clear_history">Очистить историю</string>
     <string name="clear_cache">Очистить кэш</string>
     <string name="cache_mode">Режим кэширования</string>
-    <string name="android_version_info">Android 4.1+ Jelly Bean Edition</string>
+    <string name="app_version">1.0</string>
 </resources>
 

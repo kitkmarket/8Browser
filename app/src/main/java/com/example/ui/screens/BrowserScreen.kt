@@ -1,5 +1,7 @@
 package com.example.ui.screens
 
+import android.app.DownloadManager
+import android.content.Intent
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
@@ -53,7 +55,6 @@ fun BrowserScreen(
 
     val history by viewModel.history.collectAsStateWithLifecycle()
     val bookmarks by viewModel.bookmarks.collectAsStateWithLifecycle()
-    val downloads by viewModel.downloads.collectAsStateWithLifecycle()
 
     val isBookmarked = remember(bookmarks, currentTab.url) {
         bookmarks.any { it.url == currentTab.url }
@@ -66,9 +67,9 @@ fun BrowserScreen(
     val showTabsSheet by viewModel.showTabsSheet.collectAsStateWithLifecycle()
     val showHistoryDialog by viewModel.showHistoryDialog.collectAsStateWithLifecycle()
     val showBookmarksDialog by viewModel.showBookmarksDialog.collectAsStateWithLifecycle()
-    val showDownloadsDialog by viewModel.showDownloadsDialog.collectAsStateWithLifecycle()
     val showSettingsDialog by viewModel.showSettingsDialog.collectAsStateWithLifecycle()
     val showAboutDialog by viewModel.showAboutDialog.collectAsStateWithLifecycle()
+    val contextMenuTarget by viewModel.contextMenuTarget.collectAsStateWithLifecycle()
 
     val statusMessage by viewModel.statusMessage.collectAsStateWithLifecycle()
 
@@ -76,14 +77,14 @@ fun BrowserScreen(
 
     // System back button handling: go back in web history if possible, else close tabs
     BackHandler(enabled = true) {
-        if (showTabsSheet) {
+        if (contextMenuTarget != null) {
+            viewModel.dismissContextMenu()
+        } else if (showTabsSheet) {
             viewModel.toggleTabsSheet(false)
         } else if (showHistoryDialog) {
             viewModel.setShowHistory(false)
         } else if (showBookmarksDialog) {
             viewModel.setShowBookmarks(false)
-        } else if (showDownloadsDialog) {
-            viewModel.setShowDownloads(false)
         } else if (showSettingsDialog) {
             viewModel.setShowSettings(false)
         } else if (showAboutDialog) {
@@ -121,6 +122,30 @@ fun BrowserScreen(
                 onToggleBookmark = { viewModel.toggleBookmarkCurrentPage() },
                 onOpenTabs = { viewModel.toggleTabsSheet(true) },
                 onOpenOverflowMenu = { showOverflowMenu = true },
+                overflowMenu = {
+                    HoloActionOverflowMenu(
+                        expanded = showOverflowMenu,
+                        onDismissRequest = { showOverflowMenu = false },
+                        isDesktopMode = currentTab.isDesktopMode,
+                        onNewTab = { viewModel.openNewTab() },
+                        onNewIncognitoTab = { viewModel.openNewTab(isIncognito = true) },
+                        onBookmarks = { viewModel.setShowBookmarks(true) },
+                        onHistory = { viewModel.setShowHistory(true) },
+                        onDownloads = {
+                            try {
+                                val intent = Intent(DownloadManager.ACTION_VIEW_DOWNLOADS).apply {
+                                    flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                                }
+                                context.startActivity(intent)
+                            } catch (_: Exception) {
+                                viewModel.showToast("Не удалось открыть системные загрузки")
+                            }
+                        },
+                        onToggleDesktop = { viewModel.toggleDesktopMode() },
+                        onSettings = { viewModel.setShowSettings(true) },
+                        onAbout = { viewModel.setShowAbout(true) }
+                    )
+                },
                 modifier = Modifier.statusBarsPadding()
             )
 
@@ -135,22 +160,6 @@ fun BrowserScreen(
                     viewModel = viewModel,
                     modifier = Modifier.fillMaxSize()
                 )
-
-                // Overflow menu positioned right under action bar
-                HoloActionOverflowMenu(
-                    expanded = showOverflowMenu,
-                    onDismissRequest = { showOverflowMenu = false },
-                    isDesktopMode = currentTab.isDesktopMode,
-                    onNewTab = { viewModel.openNewTab() },
-                    onNewIncognitoTab = { viewModel.openNewTab(isIncognito = true) },
-                    onBookmarks = { viewModel.setShowBookmarks(true) },
-                    onHistory = { viewModel.setShowHistory(true) },
-                    onDownloads = { viewModel.setShowDownloads(true) },
-                    onToggleDesktop = { viewModel.toggleDesktopMode() },
-                    onSettings = { viewModel.setShowSettings(true) },
-                    onAbout = { viewModel.setShowAbout(true) },
-                    modifier = Modifier.align(Alignment.TopEnd)
-                )
             }
 
             // Bottom Navigation Bar
@@ -159,7 +168,7 @@ fun BrowserScreen(
                 canGoForward = currentTab.canGoForward,
                 onBack = { viewModel.goBack() },
                 onForward = { viewModel.goForward() },
-                onHome = { viewModel.loadUrl("https://ya.ru") },
+                onHome = { viewModel.loadUrl(searchEngine.homeUrl) },
                 onNewTab = { viewModel.openNewTab() },
                 onBookmarks = { viewModel.setShowBookmarks(true) }
             )
@@ -225,15 +234,6 @@ fun BrowserScreen(
             )
         }
 
-        if (showDownloadsDialog) {
-            HoloDownloadsDialog(
-                downloads = downloads,
-                onDeleteDownload = { viewModel.deleteDownload(it) },
-                onClearAll = { viewModel.clearAllDownloads() },
-                onDismissRequest = { viewModel.setShowDownloads(false) }
-            )
-        }
-
         if (showSettingsDialog) {
             HoloSettingsDialog(
                 cacheMode = cacheMode,
@@ -250,6 +250,17 @@ fun BrowserScreen(
         if (showAboutDialog) {
             HoloAboutDialog(
                 onDismissRequest = { viewModel.setShowAbout(false) }
+            )
+        }
+
+        contextMenuTarget?.let { target ->
+            HoloContextMenuDialog(
+                target = target,
+                onDownloadImage = { viewModel.downloadImage(it) },
+                onOpenInNewTab = { url, isIncognito -> viewModel.openNewTab(url, isIncognito) },
+                onDownloadLink = { viewModel.downloadLink(it) },
+                onShowToast = { viewModel.showToast(it) },
+                onDismissRequest = { viewModel.dismissContextMenu() }
             )
         }
     }

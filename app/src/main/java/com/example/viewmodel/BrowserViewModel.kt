@@ -1,6 +1,8 @@
 package com.example.viewmodel
 
 import android.app.Application
+import android.content.Context
+import android.content.SharedPreferences
 import android.webkit.CookieManager
 import android.webkit.WebSettings
 import android.webkit.WebView
@@ -18,6 +20,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import java.net.URLEncoder
 
 enum class CacheModeSetting(val title: String, val webSettingsMode: Int) {
     DEFAULT("Стандартный (LOAD_DEFAULT)", WebSettings.LOAD_DEFAULT),
@@ -25,13 +28,27 @@ enum class CacheModeSetting(val title: String, val webSettingsMode: Int) {
     NO_CACHE("Без кэша (LOAD_NO_CACHE)", WebSettings.LOAD_NO_CACHE)
 }
 
-enum class SearchEngine(val title: String, val searchUrlPrefix: String) {
-    DUCKDUCKGO("DuckDuckGo", "https://duckduckgo.com/?q="),
-    GOOGLE("Google", "https://www.google.com/search?q="),
-    YANDEX("Яндекс", "https://ya.ru/search/?text=")
+enum class SearchEngine(val title: String, val searchUrlPrefix: String, val homeUrl: String) {
+    GOOGLE("Google", "https://www.google.com/search?q=", "https://www.google.com"),
+    YANDEX("Яндекс", "https://ya.ru/search/?text=", "https://ya.ru"),
+    DUCKDUCKGO("DuckDuckGo", "https://duckduckgo.com/?q=", "https://duckduckgo.com")
 }
 
+enum class ContextMenuType {
+    IMAGE,
+    IMAGE_LINK,
+    LINK
+}
+
+data class ContextMenuTarget(
+    val type: ContextMenuType,
+    val imageUrl: String? = null,
+    val linkUrl: String? = null
+)
+
 class BrowserViewModel(application: Application) : AndroidViewModel(application) {
+
+    private val prefs: SharedPreferences = application.getSharedPreferences("eight_browser_prefs", Context.MODE_PRIVATE)
 
     private val repository: BrowserRepository
     init {
@@ -39,11 +56,41 @@ class BrowserViewModel(application: Application) : AndroidViewModel(application)
         repository = BrowserRepository(application, db.browserDao())
     }
 
+    private val initialSearchEngine: SearchEngine = run {
+        val saved = prefs.getString("selected_search_engine", SearchEngine.GOOGLE.name)
+        try {
+            SearchEngine.valueOf(saved ?: SearchEngine.GOOGLE.name)
+        } catch (_: Exception) {
+            SearchEngine.GOOGLE
+        }
+    }
+
+    private val initialCacheMode: CacheModeSetting = run {
+        val saved = prefs.getString("selected_cache_mode", CacheModeSetting.DEFAULT.name)
+        try {
+            CacheModeSetting.valueOf(saved ?: CacheModeSetting.DEFAULT.name)
+        } catch (_: Exception) {
+            CacheModeSetting.DEFAULT
+        }
+    }
+
+    private val initialJsEnabled: Boolean = prefs.getBoolean("javascript_enabled", true)
+
+    // --- Settings State ---
+    private val _searchEngine = MutableStateFlow(initialSearchEngine)
+    val searchEngine: StateFlow<SearchEngine> = _searchEngine.asStateFlow()
+
+    private val _cacheMode = MutableStateFlow(initialCacheMode)
+    val cacheMode: StateFlow<CacheModeSetting> = _cacheMode.asStateFlow()
+
+    private val _javascriptEnabled = MutableStateFlow(initialJsEnabled)
+    val javascriptEnabled: StateFlow<Boolean> = _javascriptEnabled.asStateFlow()
+
     // --- Tabs State ---
     private val _tabs = MutableStateFlow<List<BrowserTab>>(listOf(
         BrowserTab(
-            title = "Яндекс",
-            url = "https://ya.ru",
+            title = initialSearchEngine.title,
+            url = initialSearchEngine.homeUrl,
             isIncognito = false
         )
     ))
@@ -65,16 +112,6 @@ class BrowserViewModel(application: Application) : AndroidViewModel(application)
     val downloads: StateFlow<List<DownloadItem>> = repository.allDownloads
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
-    // --- Settings State ---
-    private val _cacheMode = MutableStateFlow(CacheModeSetting.DEFAULT)
-    val cacheMode: StateFlow<CacheModeSetting> = _cacheMode.asStateFlow()
-
-    private val _searchEngine = MutableStateFlow(SearchEngine.YANDEX)
-    val searchEngine: StateFlow<SearchEngine> = _searchEngine.asStateFlow()
-
-    private val _javascriptEnabled = MutableStateFlow(true)
-    val javascriptEnabled: StateFlow<Boolean> = _javascriptEnabled.asStateFlow()
-
     private val _showTabsSheet = MutableStateFlow(false)
     val showTabsSheet: StateFlow<Boolean> = _showTabsSheet.asStateFlow()
 
@@ -84,14 +121,14 @@ class BrowserViewModel(application: Application) : AndroidViewModel(application)
     private val _showBookmarksDialog = MutableStateFlow(false)
     val showBookmarksDialog: StateFlow<Boolean> = _showBookmarksDialog.asStateFlow()
 
-    private val _showDownloadsDialog = MutableStateFlow(false)
-    val showDownloadsDialog: StateFlow<Boolean> = _showDownloadsDialog.asStateFlow()
-
     private val _showSettingsDialog = MutableStateFlow(false)
     val showSettingsDialog: StateFlow<Boolean> = _showSettingsDialog.asStateFlow()
 
     private val _showAboutDialog = MutableStateFlow(false)
     val showAboutDialog: StateFlow<Boolean> = _showAboutDialog.asStateFlow()
+
+    private val _contextMenuTarget = MutableStateFlow<ContextMenuTarget?>(null)
+    val contextMenuTarget: StateFlow<ContextMenuTarget?> = _contextMenuTarget.asStateFlow()
 
     private val _statusMessage = MutableStateFlow<String?>(null)
     val statusMessage: StateFlow<String?> = _statusMessage.asStateFlow()
@@ -104,10 +141,11 @@ class BrowserViewModel(application: Application) : AndroidViewModel(application)
     }
 
     // --- Tab Management ---
-    fun openNewTab(url: String = "https://ya.ru", isIncognito: Boolean = false) {
+    fun openNewTab(url: String? = null, isIncognito: Boolean = false) {
+        val targetUrl = url ?: _searchEngine.value.homeUrl
         val newTab = BrowserTab(
-            url = url,
-            title = if (isIncognito) "Инкогнито" else "Новая вкладка",
+            url = targetUrl,
+            title = if (isIncognito) "Инкогнито" else _searchEngine.value.title,
             isIncognito = isIncognito
         )
         val updated = _tabs.value + newTab
@@ -128,13 +166,14 @@ class BrowserViewModel(application: Application) : AndroidViewModel(application)
         if (list.size <= 1) {
             // Keep at least one tab
             list[0] = BrowserTab(
-                url = "https://ya.ru",
-                title = "Новая вкладка",
+                url = _searchEngine.value.homeUrl,
+                title = _searchEngine.value.title,
                 isIncognito = false
             )
             _tabs.value = list
             _currentTabIndex.value = 0
             _showTabsSheet.value = false
+            activeWebView?.loadUrl(_searchEngine.value.homeUrl)
             return
         }
 
@@ -158,7 +197,7 @@ class BrowserViewModel(application: Application) : AndroidViewModel(application)
             if (formatted.contains(".") && !formatted.contains(" ")) {
                 formatted = "https://$formatted"
             } else {
-                formatted = _searchEngine.value.searchUrlPrefix + java.net.URLEncoder.encode(formatted, "UTF-8")
+                formatted = _searchEngine.value.searchUrlPrefix + URLEncoder.encode(formatted, "UTF-8")
             }
         }
 
@@ -288,6 +327,48 @@ class BrowserViewModel(application: Application) : AndroidViewModel(application)
         }
     }
 
+    // --- Context Menu (Long-press) ---
+    fun showContextMenu(target: ContextMenuTarget) {
+        _contextMenuTarget.value = target
+    }
+
+    fun dismissContextMenu() {
+        _contextMenuTarget.value = null
+    }
+
+    fun downloadImage(imageUrl: String) {
+        viewModelScope.launch {
+            showToast("Загрузка изображения...")
+            val result = repository.downloadImage(
+                url = imageUrl,
+                userAgent = activeWebView?.settings?.userAgentString,
+                referer = currentTab.url
+            )
+            if (result > 0) {
+                showToast("Изображение сохранено в папку Загрузки")
+            } else {
+                showToast("Не удалось загрузить изображение")
+            }
+        }
+    }
+
+    fun downloadLink(linkUrl: String) {
+        viewModelScope.launch {
+            showToast("Загрузка файла по ссылке...")
+            val result = repository.startDownload(
+                url = linkUrl,
+                userAgent = activeWebView?.settings?.userAgentString,
+                contentDisposition = null,
+                mimeType = null,
+                contentLength = 0L,
+                referer = currentTab.url
+            )
+            if (result > 0) {
+                showToast("Загрузка началась в системном менеджере")
+            }
+        }
+    }
+
     // --- Download Handling ---
     fun handleDownload(
         url: String,
@@ -297,9 +378,15 @@ class BrowserViewModel(application: Application) : AndroidViewModel(application)
         contentLength: Long
     ) {
         viewModelScope.launch {
-            repository.startDownload(url, userAgent, contentDisposition, mimeType, contentLength)
-            showToast("Начало загрузки файла...")
-            _showDownloadsDialog.value = true
+            repository.startDownload(
+                url = url,
+                userAgent = userAgent,
+                contentDisposition = contentDisposition,
+                mimeType = mimeType,
+                contentLength = contentLength,
+                referer = currentTab.url
+            )
+            showToast("Загрузка началась через системный менеджер...")
         }
     }
 
@@ -319,6 +406,7 @@ class BrowserViewModel(application: Application) : AndroidViewModel(application)
     // --- Cache and Storage ---
     fun setCacheMode(mode: CacheModeSetting) {
         _cacheMode.value = mode
+        prefs.edit().putString("selected_cache_mode", mode.name).apply()
         activeWebView?.settings?.cacheMode = mode.webSettingsMode
         showToast("Режим кэша: ${mode.title.substringBefore('(')}")
     }
@@ -330,12 +418,23 @@ class BrowserViewModel(application: Application) : AndroidViewModel(application)
 
     fun setSearchEngine(engine: SearchEngine) {
         _searchEngine.value = engine
+        prefs.edit().putString("selected_search_engine", engine.name).apply()
         showToast("Поисковая система: ${engine.title}")
+
+        // If current tab is on a search engine home page or empty, navigate to the new search engine
+        val currentUrl = currentTab.url
+        val isSearchHome = SearchEngine.values().any {
+            currentUrl.startsWith(it.homeUrl) || currentUrl.startsWith(it.searchUrlPrefix.substringBefore('?'))
+        }
+        if (isSearchHome || currentUrl.isBlank() || currentUrl == "about:blank") {
+            loadUrl(engine.homeUrl)
+        }
     }
 
     fun toggleJavascript() {
         val newValue = !_javascriptEnabled.value
         _javascriptEnabled.value = newValue
+        prefs.edit().putBoolean("javascript_enabled", newValue).apply()
         activeWebView?.settings?.javaScriptEnabled = newValue
         showToast(if (newValue) "JavaScript включен" else "JavaScript отключен")
     }
@@ -351,7 +450,6 @@ class BrowserViewModel(application: Application) : AndroidViewModel(application)
     // Dialog toggles
     fun setShowHistory(show: Boolean) { _showHistoryDialog.value = show }
     fun setShowBookmarks(show: Boolean) { _showBookmarksDialog.value = show }
-    fun setShowDownloads(show: Boolean) { _showDownloadsDialog.value = show }
     fun setShowSettings(show: Boolean) { _showSettingsDialog.value = show }
     fun setShowAbout(show: Boolean) { _showAboutDialog.value = show }
 }

@@ -124,14 +124,10 @@ fun HoloAboutDialog(
                                 fontWeight = FontWeight.Bold
                             )
                             Text(
-                                text = "Android 4.1 Holo Dark Edition",
+                                text = "Версия 1.0",
                                 color = HoloBlueLight,
-                                fontSize = 12.sp
-                            )
-                            Text(
-                                text = "Версия 1.0 (API 17+ / Android 4.2+)",
-                                color = HoloTextHint,
-                                fontSize = 11.sp
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.Medium
                             )
                         }
                     }
@@ -139,13 +135,14 @@ fun HoloAboutDialog(
                     Spacer(modifier = Modifier.height(14.dp))
 
                     Text(
-                        text = "8Browser — удобный браузер с аутентичным системным интерфейсом Android 4.1 Jelly Bean (Holo Dark).\n\n" +
+                        text = "8Browser — быстрый и удобный браузер.\n\n" +
                                 "• Системный движок WebView с аппаратным ускорением\n" +
                                 "• Режим инкогнито с защитой приватности\n" +
-                                "• Встроенный менеджер загрузок с Android DownloadManager\n" +
+                                "• Встроенный менеджер загрузок\n" +
                                 "• Полная поддержка истории и закладок\n" +
+                                "• Выбор поисковых систем (Google, Яндекс, DuckDuckGo)\n" +
                                 "• Тонкая настройка кэша и режима сохранения трафика\n" +
-                                "• Тёмная тема по умолчанию",
+                                "• Поддержка микрофона, камеры и геолокации",
                         color = HoloTextSecondary,
                         fontSize = 13.sp,
                         lineHeight = 18.sp

@@ -265,7 +265,7 @@ fun HoloSettingsDialog(
                     HoloDividerLine()
 
                     // SECTION: SYSTEM & DESIGN
-                    SectionHeader(title = "СИСТЕМА И ДИЗАЙН")
+                    SectionHeader(title = "СИСТЕМА")
 
                     Row(
                         modifier = Modifier
@@ -273,18 +273,8 @@ fun HoloSettingsDialog(
                             .padding(vertical = 4.dp),
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
-                        Text(text = "Тема интерфейса:", color = HoloTextSecondary, fontSize = 12.sp)
-                        Text(text = "Holo Dark (Android 4.1)", color = HoloBlueLight, fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                    }
-
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(vertical = 4.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Text(text = "Минимальная версия:", color = HoloTextSecondary, fontSize = 12.sp)
-                        Text(text = "Android 4.2+ (Jelly Bean MR1)", color = HoloGreen, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                        Text(text = "Версия приложения:", color = HoloTextSecondary, fontSize = 12.sp)
+                        Text(text = "1.0", color = HoloBlueLight, fontSize = 12.sp, fontWeight = FontWeight.Bold)
                     }
 
                     Row(
